@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: evermind-whisper-backend
+    env: python
+    plan: free
+    buildCommand: |
+      apt-get update && apt-get install -y ffmpeg
+      pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: '1'
+      - key: PORT
+        value: '10000'
+
+# arrancar en local:
+# uvicorn main:app --host 0.0.0.0 --port 10000
+
+

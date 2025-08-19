@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+openai-whisper
+torch
+torchvision
+torchaudio
+pydantic
+httpx
+python-dotenv
