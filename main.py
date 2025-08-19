@@ -25,13 +25,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Carga el modelo base de Whisper
-try:
-    model = whisper.load_model("base")  # Usando modelo más pequeño para Render
-    print("✅ Whisper modelo cargado exitosamente")
-except Exception as e:
-    print(f"❌ Error cargando Whisper: {e}")
-    model = None
+# Carga el modelo base de Whisper solo cuando sea necesario (lazy loading)
+model = None
+
+def load_whisper_model():
+    global model
+    if model is None:
+        try:
+            import whisper
+            model = whisper.load_model("tiny")  # Modelo más pequeño para Render
+            print("✅ Whisper modelo 'tiny' cargado exitosamente")
+        except Exception as e:
+            print(f"❌ Error cargando Whisper: {e}")
+            model = False
+    return model
 
 # Configuración de IA - Proveedores funcionales
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY", "")
@@ -218,6 +225,12 @@ def generate_simple_fallback() -> str:
 @app.post("/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
     """Transcribir audio usando Whisper"""
+    global model
+    
+    # Cargar modelo si no está cargado
+    if model is None or model is False:
+        load_whisper_model()
+    
     if not model:
         raise HTTPException(status_code=503, detail="Whisper no está disponible en este momento")
     
@@ -309,8 +322,8 @@ def root():
         "status": "ok", 
         "service": "Evermind AI Backend",
         "version": "1.0.0",
-        "whisper_loaded": model is not None,
-        "endpoints": ["/transcribe", "/reflect", "/check-credits", "/providers-status", "/health"], 
+        "whisper_loaded": model is not None and model is not False,
+        "endpoints": ["/transcribe", "/reflect", "/check-credits", "/providers-status", "/health", "/ping"], 
         "ai_providers": ["groq", "openrouter", "together"]
     }
 
@@ -318,8 +331,19 @@ def root():
 def health_check():
     return {
         "status": "healthy",
-        "whisper": "loaded" if model else "error",
+        "whisper": "loaded" if model and model is not False else "not_loaded",
         "timestamp": os.environ.get("RENDER_SERVICE_ID", "local")
+    }
+
+@app.get("/ping")
+def ping():
+    """Endpoint para mantener el servicio activo en Render"""
+    import time
+    return {
+        "status": "pong",
+        "timestamp": int(time.time()),
+        "service": "evermind-backend",
+        "memory_usage": "optimized"
     }
 
 @app.get("/providers-status")
