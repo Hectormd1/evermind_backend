@@ -14,6 +14,10 @@ from dotenv import load_dotenv
 # Cargar variables de entorno
 load_dotenv()
 
+# Log de inicio
+print("🚀 EVERMIND BACKEND: Iniciando servidor...")
+print("🔄 KEEP-ALIVE: Worker automático configurado")
+
 app = FastAPI(title="Evermind AI Backend", version="1.0.0")
 
 # Agregar middleware CORS para React Native
@@ -33,10 +37,11 @@ def load_whisper_model():
     if model is None:
         try:
             import whisper
+            print("🤖 WHISPER: Iniciando carga del modelo 'tiny'...")
             model = whisper.load_model("tiny")  # Modelo más pequeño para Render
-            print("✅ Whisper modelo 'tiny' cargado exitosamente")
+            print("✅ WHISPER: Modelo 'tiny' cargado exitosamente para transcripción")
         except Exception as e:
-            print(f"❌ Error cargando Whisper: {e}")
+            print(f"❌ WHISPER ERROR: Error cargando modelo: {e}")
             model = False
     return model
 
@@ -244,7 +249,8 @@ async def transcribe_audio(file: UploadFile = File(...)):
             temp_file.write(content)
             temp_file_path = temp_file.name
         
-        print(f"🎵 Transcribiendo audio: {temp_file_path}")
+        print(f"🎵 TRANSCRIPCIÓN: Procesando audio desde React Native")
+        print(f"📁 ARCHIVO: {temp_file_path}")
         
         # Transcribir con Whisper
         result = model.transcribe(
@@ -278,7 +284,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
         for wrong, correct in corrections.items():
             transcribed_text = transcribed_text.replace(wrong, correct)
         
-        print(f"📝 Texto transcrito: {transcribed_text}")
+        print(f"📝 RESULTADO: '{transcribed_text}'")
         
         if not transcribed_text:
             return {"text": "No se pudo transcribir el audio"}
@@ -339,11 +345,18 @@ def health_check():
 def ping():
     """Endpoint para mantener el servicio activo en Render"""
     import time
+    
+    # Log más informativo
+    print("🔄 KEEP-ALIVE: Ping recibido desde Cloudflare Workers")
+    print(f"⏰ Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
+    
     return {
         "status": "pong",
         "timestamp": int(time.time()),
         "service": "evermind-backend",
-        "memory_usage": "optimized"
+        "memory_usage": "optimized",
+        "keep_alive": "active",
+        "source": "cloudflare_workers_cron"
     }
 
 @app.get("/providers-status")
