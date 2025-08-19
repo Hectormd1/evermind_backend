@@ -399,6 +399,28 @@ def root():
         "ai_providers": ["groq", "openrouter", "together"]
     }
 
+@app.get("/ping")
+@app.head("/ping")  # ⭐ SOPORTE PARA HEAD REQUEST
+def ping():
+    """Endpoint simple para mantener el servicio activo en Render"""
+    import time
+    
+    # Log más informativo
+    print("🔄 KEEP-ALIVE: Ping recibido desde Cloudflare Workers")
+    print(f"⏰ Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
+    
+    # Ejecutar limpieza de memoria preventiva
+    cleanup_whisper_memory()
+    
+    return {
+        "status": "pong",
+        "timestamp": int(time.time()),
+        "service": "evermind-backend",
+        "memory_usage": "optimized",
+        "keep_alive": "active",
+        "source": "cloudflare_workers_cron"
+    }
+
 @app.get("/health")
 @app.head("/health")  # ⭐ ENDPOINT DE SALUD OPTIMIZADO
 def health_check():
