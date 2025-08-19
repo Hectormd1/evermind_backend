@@ -400,36 +400,6 @@ def root():
     }
 
 @app.get("/health")
-def health_check():
-    return {
-        "status": "healthy",
-        "whisper": "loaded" if model and model is not False else "not_loaded",
-        "timestamp": os.environ.get("RENDER_SERVICE_ID", "local")
-    }
-
-@app.get("/ping")
-@app.head("/ping")  # ⭐ SOPORTE PARA HEAD REQUEST
-def ping():
-    """Endpoint para mantener el servicio activo en Render"""
-    import time
-    
-    # Log más informativo
-    print("🔄 KEEP-ALIVE: Ping recibido desde Cloudflare Workers")
-    print(f"⏰ Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
-    
-    # Ejecutar limpieza de memoria preventiva
-    cleanup_whisper_memory()
-    
-    return {
-        "status": "pong",
-        "timestamp": int(time.time()),
-        "service": "evermind-backend",
-        "memory_usage": "optimized",
-        "keep_alive": "active",
-        "source": "cloudflare_workers_cron"
-    }
-
-@app.get("/health")
 @app.head("/health")  # ⭐ ENDPOINT DE SALUD OPTIMIZADO
 def health_check():
     """Endpoint de salud con monitoreo de memoria"""
@@ -446,7 +416,8 @@ def health_check():
             "memory": memory_info,
             "whisper_loaded": model is not None and model is not False,
             "service_active": True,
-            "version": "3.0-optimized"
+            "version": "3.0-optimized",
+            "render_service_id": os.environ.get("RENDER_SERVICE_ID", "local")
         }
     except Exception as e:
         print(f"❌ HEALTH CHECK ERROR: {e}")
