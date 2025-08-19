@@ -232,11 +232,16 @@ async def transcribe_audio(file: UploadFile = File(...)):
     """Transcribir audio usando Whisper"""
     global model
     
-    # Cargar modelo si no está cargado
+    # Log de inicio inmediato
+    print("🎵 TRANSCRIPCIÓN: Procesando audio desde React Native")
+    
+    # Cargar modelo si no está cargado (esto puede tomar tiempo la primera vez)
     if model is None or model is False:
+        print("🤖 WHISPER: Cargando modelo bajo demanda...")
         load_whisper_model()
     
     if not model:
+        print("❌ WHISPER: Modelo no disponible")
         raise HTTPException(status_code=503, detail="Whisper no está disponible en este momento")
     
     if not file:
