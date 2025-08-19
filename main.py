@@ -323,7 +323,11 @@ async def reflect_chat(request: ReflectRequest):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/")
+@app.head("/")
 def root():
+    # Log cuando el worker hace la petición
+    print("🔄 KEEP-ALIVE: Petición recibida desde Cloudflare Workers (HEAD /)")
+    
     return {
         "status": "ok", 
         "service": "Evermind AI Backend",
