@@ -8,6 +8,8 @@ import os
 import traceback
 import random
 import httpx
+import gc  # Para garbage collection manual
+import psutil  # Para monitoreo de memoria
 from typing import List, Optional
 from dotenv import load_dotenv
 
@@ -17,6 +19,7 @@ load_dotenv()
 # Log de inicio
 print("🚀 EVERMIND BACKEND: Iniciando servidor...")
 print("🔄 KEEP-ALIVE: Worker automático configurado")
+print(f"💾 MEMORIA INICIAL: {psutil.virtual_memory().percent}%")
 
 app = FastAPI(title="Evermind AI Backend", version="1.0.0")
 
@@ -38,22 +41,55 @@ def load_whisper_model():
         try:
             import whisper
             print("🤖 WHISPER: Iniciando carga del modelo 'tiny'...")
-            # Optimización de memoria para Render
-            model = whisper.load_model("tiny", device="cpu")  # Forzar CPU para ahorrar memoria
+            print(f"💾 MEMORIA ANTES: {psutil.virtual_memory().percent}%")
+            
+            # Optimización máxima de memoria para Render
+            model = whisper.load_model("tiny", device="cpu", download_root=None)
+            
             print("✅ WHISPER: Modelo 'tiny' cargado exitosamente en CPU")
+            print(f"💾 MEMORIA DESPUÉS: {psutil.virtual_memory().percent}%")
+            
+            # Limpiar memoria inmediatamente después de cargar
+            gc.collect()
+            
         except Exception as e:
             print(f"❌ WHISPER ERROR: Error cargando modelo: {e}")
             model = False
     return model
 
-# Función para liberar memoria después de transcripción
+# Función mejorada para liberar memoria después de transcripción
 def cleanup_whisper_memory():
-    import gc
-    import torch
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    print("🧹 MEMORIA: Limpieza realizada")
+    try:
+        gc.collect()  # Garbage collection inmediato
+        
+        # Si torch está disponible, limpiar cache
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except ImportError:
+            pass  # torch no disponible, continuar
+            
+        memory_percent = psutil.virtual_memory().percent
+        print(f"🧹 MEMORIA LIMPIA: {memory_percent}% usado")
+        
+        # Si el uso de memoria es muy alto, forzar limpieza más agresiva
+        if memory_percent > 80:
+            print("⚠️ MEMORIA ALTA: Ejecutando limpieza agresiva...")
+            for i in range(3):
+                gc.collect()
+                
+    except Exception as e:
+        print(f"❌ ERROR EN LIMPIEZA: {e}")
+
+# Función para verificar memoria disponible
+def check_memory_status():
+    memory = psutil.virtual_memory()
+    return {
+        "used_percent": memory.percent,
+        "available_mb": memory.available // (1024 * 1024),
+        "total_mb": memory.total // (1024 * 1024)
+    }
 
 # Configuración de IA - Proveedores funcionales
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY", "")
@@ -266,8 +302,9 @@ async def transcribe_audio(file: UploadFile = File(...)):
         
         print(f"🎵 TRANSCRIPCIÓN: Procesando audio desde React Native")
         print(f"📁 ARCHIVO: {temp_file_path}")
+        print(f"💾 MEMORIA PRE-TRANSCRIPCIÓN: {psutil.virtual_memory().percent}%")
         
-        # Transcribir con Whisper
+        # Transcribir con Whisper (configuración optimizada para memoria)
         result = model.transcribe(
             temp_file_path,
             language="es",  # Forzar español
@@ -281,11 +318,18 @@ async def transcribe_audio(file: UploadFile = File(...)):
             initial_prompt="Transcripción de audio en español. Palabras comunes: calor, color, mucho, poco, tengo, estoy, muy, bien, mal."  # Contexto español
         )
         
-        # ⭐ LIMPIEZA INMEDIATA DE MEMORIA
+        # ⭐ LIMPIEZA INMEDIATA Y AGRESIVA DE MEMORIA DESPUÉS DE TRANSCRIPCIÓN
+        print("🧹 LIMPIEZA: Liberando memoria post-transcripción...")
         cleanup_whisper_memory()
         
-        # Limpiar archivo temporal
-        os.unlink(temp_file_path)
+        # Limpiar archivo temporal inmediatamente
+        try:
+            os.unlink(temp_file_path)
+            print("🗑️ ARCHIVO TEMPORAL: Eliminado exitosamente")
+        except Exception as cleanup_error:
+            print(f"⚠️ ARCHIVO TEMPORAL: Error al eliminar - {cleanup_error}")
+        
+        print(f"💾 MEMORIA POST-LIMPIEZA: {psutil.virtual_memory().percent}%")
         
         transcribed_text = result["text"].strip()
         
@@ -373,6 +417,9 @@ def ping():
     print("🔄 KEEP-ALIVE: Ping recibido desde Cloudflare Workers")
     print(f"⏰ Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
     
+    # Ejecutar limpieza de memoria preventiva
+    cleanup_whisper_memory()
+    
     return {
         "status": "pong",
         "timestamp": int(time.time()),
@@ -383,31 +430,66 @@ def ping():
     }
 
 @app.get("/health")
-@app.head("/health")  # ⭐ ENDPOINT ADICIONAL DE SALUD
+@app.head("/health")  # ⭐ ENDPOINT DE SALUD OPTIMIZADO
 def health_check():
-    """Endpoint adicional de salud para keep-alive agresivo"""
+    """Endpoint de salud con monitoreo de memoria"""
     import time
-    import psutil
     
     try:
-        # Información básica del sistema
-        memory_info = psutil.virtual_memory()
-        memory_percent = memory_info.percent
+        memory_info = check_memory_status()
         
-        print(f"🏥 HEALTH CHECK: Memoria en uso: {memory_percent}%")
+        print(f"🏥 HEALTH CHECK: Memoria en uso: {memory_info['used_percent']}%")
         
         return {
             "status": "healthy",
             "timestamp": int(time.time()),
-            "memory_percent": memory_percent,
+            "memory": memory_info,
             "whisper_loaded": model is not None and model is not False,
-            "service_active": True
+            "service_active": True,
+            "version": "3.0-optimized"
         }
-    except:
+    except Exception as e:
+        print(f"❌ HEALTH CHECK ERROR: {e}")
         return {
             "status": "healthy",
             "timestamp": int(time.time()),
-            "service_active": True
+            "service_active": True,
+            "error": str(e)
+        }
+
+@app.get("/status")
+@app.head("/status")  # ⭐ NUEVO ENDPOINT DE STATUS COMPLETO
+def status_check():
+    """Endpoint completo de status para keep-alive ultra-agresivo"""
+    import time
+    
+    try:
+        memory_info = check_memory_status()
+        
+        # Si la memoria está muy alta, ejecutar limpieza
+        if memory_info['used_percent'] > 75:
+            print("⚠️ MEMORIA ALTA DETECTADA: Ejecutando limpieza automática...")
+            cleanup_whisper_memory()
+            memory_info = check_memory_status()  # Actualizar después de limpieza
+        
+        print(f"📊 STATUS CHECK: Servicio activo - Memoria: {memory_info['used_percent']}%")
+        
+        return {
+            "status": "fully_active",
+            "timestamp": int(time.time()),
+            "uptime": "continuous",
+            "memory": memory_info,
+            "whisper_model": "tiny" if model and model is not False else "not_loaded",
+            "endpoints_active": ["/transcribe", "/reflect", "/ping", "/health", "/status"],
+            "keep_alive_mode": "ultra_aggressive",
+            "auto_cleanup": memory_info['used_percent'] <= 75
+        }
+    except Exception as e:
+        print(f"❌ STATUS CHECK ERROR: {e}")
+        return {
+            "status": "active_with_errors",
+            "timestamp": int(time.time()),
+            "error": str(e)
         }
 
 @app.get("/providers-status")
