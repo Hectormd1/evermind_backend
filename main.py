@@ -38,12 +38,22 @@ def load_whisper_model():
         try:
             import whisper
             print("🤖 WHISPER: Iniciando carga del modelo 'tiny'...")
-            model = whisper.load_model("tiny")  # Modelo más pequeño para Render
-            print("✅ WHISPER: Modelo 'tiny' cargado exitosamente para transcripción")
+            # Optimización de memoria para Render
+            model = whisper.load_model("tiny", device="cpu")  # Forzar CPU para ahorrar memoria
+            print("✅ WHISPER: Modelo 'tiny' cargado exitosamente en CPU")
         except Exception as e:
             print(f"❌ WHISPER ERROR: Error cargando modelo: {e}")
             model = False
     return model
+
+# Función para liberar memoria después de transcripción
+def cleanup_whisper_memory():
+    import gc
+    import torch
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    print("🧹 MEMORIA: Limpieza realizada")
 
 # Configuración de IA - Proveedores funcionales
 TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY", "")
@@ -271,6 +281,9 @@ async def transcribe_audio(file: UploadFile = File(...)):
             initial_prompt="Transcripción de audio en español. Palabras comunes: calor, color, mucho, poco, tengo, estoy, muy, bien, mal."  # Contexto español
         )
         
+        # ⭐ LIMPIEZA INMEDIATA DE MEMORIA
+        cleanup_whisper_memory()
+        
         # Limpiar archivo temporal
         os.unlink(temp_file_path)
         
@@ -351,6 +364,7 @@ def health_check():
     }
 
 @app.get("/ping")
+@app.head("/ping")  # ⭐ SOPORTE PARA HEAD REQUEST
 def ping():
     """Endpoint para mantener el servicio activo en Render"""
     import time
@@ -367,6 +381,34 @@ def ping():
         "keep_alive": "active",
         "source": "cloudflare_workers_cron"
     }
+
+@app.get("/health")
+@app.head("/health")  # ⭐ ENDPOINT ADICIONAL DE SALUD
+def health_check():
+    """Endpoint adicional de salud para keep-alive agresivo"""
+    import time
+    import psutil
+    
+    try:
+        # Información básica del sistema
+        memory_info = psutil.virtual_memory()
+        memory_percent = memory_info.percent
+        
+        print(f"🏥 HEALTH CHECK: Memoria en uso: {memory_percent}%")
+        
+        return {
+            "status": "healthy",
+            "timestamp": int(time.time()),
+            "memory_percent": memory_percent,
+            "whisper_loaded": model is not None and model is not False,
+            "service_active": True
+        }
+    except:
+        return {
+            "status": "healthy",
+            "timestamp": int(time.time()),
+            "service_active": True
+        }
 
 @app.get("/providers-status")
 async def providers_status():
