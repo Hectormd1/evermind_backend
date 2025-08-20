@@ -64,13 +64,13 @@ def load_whisper_model():
     if model is None:
         try:
             import whisper
-            print("🤖 WHISPER: Iniciando carga del modelo 'small'...")
+            print("🤖 WHISPER: Iniciando carga del modelo 'medium'...")
             print(f"💾 MEMORIA ANTES: {psutil.virtual_memory().percent}%")
             
-            # Usar modelo 'small' - mejor balance precisión-velocidad para producción
-            model = whisper.load_model("small", device="cpu", download_root=None)
+            # Usar modelo 'medium' - máxima precisión para español
+            model = whisper.load_model("medium", device="cpu", download_root=None)
             
-            print("✅ WHISPER: Modelo 'small' cargado exitosamente en CPU")
+            print("✅ WHISPER: Modelo 'medium' cargado exitosamente en CPU")
             print(f"💾 MEMORIA DESPUÉS: {psutil.virtual_memory().percent}%")
             
             # Limpiar memoria inmediatamente después de cargar
@@ -334,21 +334,22 @@ async def transcribe_audio(file: UploadFile = File(...)):
         print(f"📁 ARCHIVO: {temp_file_path}")
         print(f"💾 MEMORIA PRE-TRANSCRIPCIÓN: {psutil.virtual_memory().percent}%")
         
-        # Transcribir con Whisper (configuración balanceada para PRECISIÓN-VELOCIDAD)
+        # Transcribir con Whisper (configuración de MÁXIMA PRECISIÓN para español)
         result = model.transcribe(
             temp_file_path,
             language="es",  # Forzar español
             fp16=False,  # Mejor compatibilidad
-            temperature=0.0,  # Máxima precisión
-            word_timestamps=False,  # Desactivar para mayor velocidad
-            no_speech_threshold=0.6,  # Balanceado para detectar habla
+            temperature=0.0,  # Máxima precisión determinística
+            word_timestamps=False,  # Desactivar para velocidad
+            no_speech_threshold=0.5,  # Más sensible para detectar habla
             logprob_threshold=-1.0,  # Balanceado con la confianza
             compression_ratio_threshold=2.4,  # Evitar repeticiones
-            condition_on_previous_text=False,  # Desactivar para velocidad
-            initial_prompt=None,  # Sin prompt para mas velocidad
-            beam_size=3,  # Incrementar para mejor precisión
-            best_of=2,  # Dos candidatos para mejor resultado
-            patience=1.0  # Menos paciente para mayor velocidad
+            condition_on_previous_text=False,  # Desactivar para independencia
+            initial_prompt="Transcripción precisa en español de reflexión personal sobre trabajo y vida profesional.",  # Contexto específico
+            beam_size=5,  # Mayor búsqueda para máxima precisión
+            best_of=3,  # Tres candidatos para mejor resultado
+            patience=2.0  # Más paciente para mejor calidad
+        )
         )
         
         # ⭐ LIMPIEZA INMEDIATA Y AGRESIVA DE MEMORIA DESPUÉS DE TRANSCRIPCIÓN
