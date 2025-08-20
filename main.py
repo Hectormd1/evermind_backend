@@ -64,13 +64,13 @@ def load_whisper_model():
     if model is None:
         try:
             import whisper
-            print("🤖 WHISPER: Iniciando carga del modelo 'base'...")
+            print("🤖 WHISPER: Iniciando carga del modelo 'small'...")
             print(f"💾 MEMORIA ANTES: {psutil.virtual_memory().percent}%")
             
-            # Usar modelo 'base' - mejor balance velocidad-precisión para producción
-            model = whisper.load_model("base", device="cpu", download_root=None)
+            # Usar modelo 'small' - mejor balance precisión-velocidad para producción
+            model = whisper.load_model("small", device="cpu", download_root=None)
             
-            print("✅ WHISPER: Modelo 'base' cargado exitosamente en CPU")
+            print("✅ WHISPER: Modelo 'small' cargado exitosamente en CPU")
             print(f"💾 MEMORIA DESPUÉS: {psutil.virtual_memory().percent}%")
             
             # Limpiar memoria inmediatamente después de cargar
@@ -334,7 +334,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
         print(f"📁 ARCHIVO: {temp_file_path}")
         print(f"💾 MEMORIA PRE-TRANSCRIPCIÓN: {psutil.virtual_memory().percent}%")
         
-        # Transcribir con Whisper (configuración optimizada para VELOCIDAD)
+        # Transcribir con Whisper (configuración balanceada para PRECISIÓN-VELOCIDAD)
         result = model.transcribe(
             temp_file_path,
             language="es",  # Forzar español
@@ -345,9 +345,9 @@ async def transcribe_audio(file: UploadFile = File(...)):
             logprob_threshold=-1.0,  # Balanceado con la confianza
             compression_ratio_threshold=2.4,  # Evitar repeticiones
             condition_on_previous_text=False,  # Desactivar para velocidad
-            initial_prompt=None,  # Sin prompt para mayor velocidad
-            beam_size=1,  # Mínimo para máxima velocidad
-            best_of=1,  # Mínimo para máxima velocidad
+            initial_prompt=None,  # Sin prompt para mas velocidad
+            beam_size=3,  # Incrementar para mejor precisión
+            best_of=2,  # Dos candidatos para mejor resultado
             patience=1.0  # Menos paciente para mayor velocidad
         )
         
