@@ -746,8 +746,5 @@ with gr.Blocks(title="Evermind AI Backend", theme=gr.themes.Soft()) as demo:
 # Montar la aplicación Gradio en FastAPI
 app = gr.mount_gradio_app(app, demo, path="/")
 
-if __name__ == "__main__":
-    import uvicorn
-    # En Hugging Face Spaces, usar puerto 7860
-    port = int(os.environ.get("PORT", 7860))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+# HF Spaces ejecutará automáticamente la aplicación
+# No ejecutar uvicorn.run() cuando se importa desde app.py
