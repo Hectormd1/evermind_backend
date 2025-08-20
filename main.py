@@ -64,13 +64,13 @@ def load_whisper_model():
     if model is None:
         try:
             import whisper
-            print("🤖 WHISPER: Iniciando carga del modelo 'small'...")
+            print("🤖 WHISPER: Iniciando carga del modelo 'base'...")
             print(f"💾 MEMORIA ANTES: {psutil.virtual_memory().percent}%")
             
-            # Usar modelo 'small' para mejor precisión manteniendo eficiencia
-            model = whisper.load_model("small", device="cpu", download_root=None)
+            # Usar modelo 'base' para máxima precisión (mejor que small)
+            model = whisper.load_model("base", device="cpu", download_root=None)
             
-            print("✅ WHISPER: Modelo 'small' cargado exitosamente en CPU")
+            print("✅ WHISPER: Modelo 'base' cargado exitosamente en CPU")
             print(f"💾 MEMORIA DESPUÉS: {psutil.virtual_memory().percent}%")
             
             # Limpiar memoria inmediatamente después de cargar
@@ -328,18 +328,21 @@ async def transcribe_audio(file: UploadFile = File(...)):
         print(f"📁 ARCHIVO: {temp_file_path}")
         print(f"💾 MEMORIA PRE-TRANSCRIPCIÓN: {psutil.virtual_memory().percent}%")
         
-        # Transcribir con Whisper (configuración optimizada para precisión)
+        # Transcribir con Whisper (configuración ultra-precisa)
         result = model.transcribe(
             temp_file_path,
             language="es",  # Forzar español
             fp16=False,  # Mejor compatibilidad
             temperature=0.0,  # Máxima precisión, sin variación
-            word_timestamps=False,  # Simplificar para mejor precisión
-            no_speech_threshold=0.6,  # Más estricto para detectar habla
-            logprob_threshold=-1.0,  # Más estricto con la confianza
-            compression_ratio_threshold=2.4,  # Evitar repeticiones
+            word_timestamps=True,  # Activar para mejor análisis de palabras
+            no_speech_threshold=0.7,  # Más estricto para detectar habla
+            logprob_threshold=-0.8,  # Más estricto con la confianza
+            compression_ratio_threshold=2.2,  # Más estricto contra repeticiones
             condition_on_previous_text=True,  # Usar contexto para mejor coherencia
-            initial_prompt="Transcripción en español de España. Palabras frecuentes: trabajo, estoy, muy, mal, bien, pasando, auténtica, mierda, siendo, una."  # Contexto específico
+            initial_prompt="Transcripción precisa en español de España. Contexto laboral y emocional. Palabras importantes: jefe, trabajo, estoy, muy, mal, bien, pasando, auténtica, mierda, siendo, una, tengo, problemas, equipo, empresa, oficina.",  # Contexto más específico
+            beam_size=5,  # Usar beam search para mejor precisión
+            best_of=5,  # Probar múltiples decodificaciones
+            patience=2.0  # Más paciente en la decodificación
         )
         
         # ⭐ LIMPIEZA INMEDIATA Y AGRESIVA DE MEMORIA DESPUÉS DE TRANSCRIPCIÓN
@@ -357,30 +360,12 @@ async def transcribe_audio(file: UploadFile = File(...)):
         
         transcribed_text = result["text"].strip()
         
-        # Post-procesamiento para corregir errores comunes específicos del español
-        corrections = {
-            "auténtica": "auténtica",  # Preservar acentos
-            "color": "calor",
-            "que lo": "tengo", 
-            "de color": "de calor",
-            "mucho color": "mucho calor",
-            "con color": "con calor",
-            "más color": "más calor",
-            "mica": "mierda",  # Corrección común
-            "mienda": "mierda",
-            "mierde": "mierda",
-            "miarda": "mierda",
-            "estando": "estoy",
-            " lo estoy": " estoy",
-            "restringe": "restringo", 
-            "restriciendo": "restringiendo",
-            "noticia": "auténtica",  # Posible confusión
-        }
-        
-        for wrong, correct in corrections.items():
-            transcribed_text = transcribed_text.replace(wrong, correct)
-        
         print(f"📝 RESULTADO: '{transcribed_text}'")
+        
+        if not transcribed_text:
+            return {"text": "No se pudo transcribir el audio"}
+        
+        return {"text": transcribed_text}
         
         if not transcribed_text:
             return {"text": "No se pudo transcribir el audio"}
@@ -608,37 +593,28 @@ async def test_openrouter():
 if GRADIO_AVAILABLE:
     
     def transcribe_audio_for_gradio(audio_file):
-        """Función para transcribir audio desde Gradio con configuración mejorada"""
+        """Función para transcribir audio desde Gradio con configuración ultra-precisa"""
         try:
             load_whisper_model()
             if audio_file is None:
                 return "❌ No se ha proporcionado un archivo de audio"
             
-            # Transcribir usando Whisper con configuración optimizada para precisión
+            # Transcribir usando Whisper con configuración ultra-precisa
             result = model.transcribe(
                 audio_file, 
                 language="es",
                 temperature=0.0,  # Máxima precisión
-                no_speech_threshold=0.6,
+                word_timestamps=True,
+                no_speech_threshold=0.7,
+                logprob_threshold=-0.8,
+                compression_ratio_threshold=2.2,
                 condition_on_previous_text=True,
-                initial_prompt="Transcripción en español de España. Palabras frecuentes: trabajo, estoy, muy, mal, bien, pasando, auténtica, mierda, siendo, una."
+                initial_prompt="Transcripción precisa en español de España. Contexto laboral y emocional. Palabras importantes: jefe, trabajo, estoy, muy, mal, bien, pasando, auténtica, mierda, siendo, una, tengo, problemas, equipo, empresa, oficina.",
+                beam_size=5,
+                best_of=5,
+                patience=2.0
             )
             transcription = result["text"].strip()
-            
-            # Aplicar correcciones comunes
-            corrections = {
-                "mica": "mierda",
-                "mienda": "mierda", 
-                "mierde": "mierda",
-                "miarda": "mierda",
-                "estando": "estoy",
-                " lo estoy": " estoy",
-                "noticia": "auténtica",
-                "restriciendo": "restringiendo",
-            }
-            
-            for wrong, correct in corrections.items():
-                transcription = transcription.replace(wrong, correct)
             
             if not transcription:
                 return "❌ No se pudo transcribir el audio"
