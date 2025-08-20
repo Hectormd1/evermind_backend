@@ -598,23 +598,37 @@ def transcribe_audio_for_gradio(audio_file):
 async def chat_for_gradio(message, history):
     """Función para chat desde Gradio"""
     try:
-        # Convertir historial de Gradio a formato de mensajes
+        # Convertir historial de Gradio (formato messages) a formato de mensajes API
         messages = []
-        for human, assistant in history:
-            messages.append({"role": "user", "content": human})
-            if assistant:
-                messages.append({"role": "assistant", "content": assistant})
+        
+        # Si history viene en formato messages (nuevo formato Gradio)
+        if history and isinstance(history, list) and len(history) > 0:
+            if isinstance(history[0], dict) and "role" in history[0]:
+                # Ya está en formato messages
+                messages = history.copy()
+            else:
+                # Formato tuplas (viejo formato)
+                for human, assistant in history:
+                    messages.append({"role": "user", "content": human})
+                    if assistant:
+                        messages.append({"role": "assistant", "content": assistant})
         
         # Agregar mensaje actual
         messages.append({"role": "user", "content": message})
         
-        # Llamar a la función de chat
-        response = await call_ai_providers(messages)
+        # Convertir a formato ChatMessage para la función existente
+        from pydantic import BaseModel
         
-        if response and response.get("choices"):
-            return response["choices"][0]["message"]["content"]
-        else:
-            return "❌ Error: No se pudo generar respuesta"
+        class ChatMessage(BaseModel):
+            role: str
+            content: str
+        
+        chat_messages = [ChatMessage(role=msg["role"], content=msg["content"]) for msg in messages]
+        
+        # Llamar a la función de chat existente
+        response = await generate_ai_response(chat_messages)
+        
+        return response
     
     except Exception as e:
         return f"❌ Error en chat: {str(e)}"
@@ -649,7 +663,8 @@ with gr.Blocks(title="Evermind AI Backend", theme=gr.themes.Soft()) as demo:
         chatbot = gr.Chatbot(
             label="Conversación",
             height=400,
-            placeholder="Inicia una conversación..."
+            placeholder="Inicia una conversación...",
+            type="messages"
         )
         msg = gr.Textbox(
             label="Mensaje",
@@ -660,12 +675,32 @@ with gr.Blocks(title="Evermind AI Backend", theme=gr.themes.Soft()) as demo:
         clear_btn = gr.Button("🗑️ Limpiar Chat", variant="secondary")
         
         def respond(message, history):
-            # Función wrapper para manejar el async
+            # Función wrapper para manejar el async con nuevo formato messages
+            if not message.strip():
+                return history, ""
+                
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
                 response = loop.run_until_complete(chat_for_gradio(message, history))
-                history.append((message, response))
+                
+                # Agregar mensaje y respuesta al historial
+                new_message = {"role": "user", "content": message}
+                new_response = {"role": "assistant", "content": response}
+                
+                if history is None:
+                    history = []
+                
+                history.append(new_message)
+                history.append(new_response)
+                
+                return history, ""
+            except Exception as e:
+                error_response = {"role": "assistant", "content": f"❌ Error: {str(e)}"}
+                if history is None:
+                    history = []
+                history.append({"role": "user", "content": message})
+                history.append(error_response)
                 return history, ""
             finally:
                 loop.close()
