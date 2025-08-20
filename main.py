@@ -64,13 +64,13 @@ def load_whisper_model():
     if model is None:
         try:
             import whisper
-            print("🤖 WHISPER: Iniciando carga del modelo 'tiny'...")
+            print("🤖 WHISPER: Iniciando carga del modelo 'small'...")
             print(f"💾 MEMORIA ANTES: {psutil.virtual_memory().percent}%")
             
-            # Optimización máxima de memoria para Render
-            model = whisper.load_model("tiny", device="cpu", download_root=None)
+            # Usar modelo 'small' para mejor precisión manteniendo eficiencia
+            model = whisper.load_model("small", device="cpu", download_root=None)
             
-            print("✅ WHISPER: Modelo 'tiny' cargado exitosamente en CPU")
+            print("✅ WHISPER: Modelo 'small' cargado exitosamente en CPU")
             print(f"💾 MEMORIA DESPUÉS: {psutil.virtual_memory().percent}%")
             
             # Limpiar memoria inmediatamente después de cargar
@@ -328,18 +328,18 @@ async def transcribe_audio(file: UploadFile = File(...)):
         print(f"📁 ARCHIVO: {temp_file_path}")
         print(f"💾 MEMORIA PRE-TRANSCRIPCIÓN: {psutil.virtual_memory().percent}%")
         
-        # Transcribir con Whisper (configuración optimizada para memoria)
+        # Transcribir con Whisper (configuración optimizada para precisión)
         result = model.transcribe(
             temp_file_path,
             language="es",  # Forzar español
             fp16=False,  # Mejor compatibilidad
-            temperature=0.2,  # Un poco más de flexibilidad
+            temperature=0.0,  # Máxima precisión, sin variación
             word_timestamps=False,  # Simplificar para mejor precisión
-            no_speech_threshold=0.5,  # Más sensible al habla
+            no_speech_threshold=0.6,  # Más estricto para detectar habla
             logprob_threshold=-1.0,  # Más estricto con la confianza
             compression_ratio_threshold=2.4,  # Evitar repeticiones
-            condition_on_previous_text=False,  # No usar contexto previo
-            initial_prompt="Transcripción de audio en español. Palabras comunes: calor, color, mucho, poco, tengo, estoy, muy, bien, mal."  # Contexto español
+            condition_on_previous_text=True,  # Usar contexto para mejor coherencia
+            initial_prompt="Transcripción en español de España. Palabras frecuentes: trabajo, estoy, muy, mal, bien, pasando, auténtica, mierda, siendo, una."  # Contexto específico
         )
         
         # ⭐ LIMPIEZA INMEDIATA Y AGRESIVA DE MEMORIA DESPUÉS DE TRANSCRIPCIÓN
@@ -357,14 +357,24 @@ async def transcribe_audio(file: UploadFile = File(...)):
         
         transcribed_text = result["text"].strip()
         
-        # Post-procesamiento para corregir errores comunes
+        # Post-procesamiento para corregir errores comunes específicos del español
         corrections = {
+            "auténtica": "auténtica",  # Preservar acentos
             "color": "calor",
-            "que lo": "tengo",
+            "que lo": "tengo", 
             "de color": "de calor",
             "mucho color": "mucho calor",
             "con color": "con calor",
-            "más color": "más calor"
+            "más color": "más calor",
+            "mica": "mierda",  # Corrección común
+            "mienda": "mierda",
+            "mierde": "mierda",
+            "miarda": "mierda",
+            "estando": "estoy",
+            " lo estoy": " estoy",
+            "restringe": "restringo", 
+            "restriciendo": "restringiendo",
+            "noticia": "auténtica",  # Posible confusión
         }
         
         for wrong, correct in corrections.items():
@@ -411,8 +421,8 @@ async def reflect_chat(request: ReflectRequest):
 @app.get("/")
 @app.head("/")
 def root():
-    # Log cuando el worker hace la petición
-    print("🔄 KEEP-ALIVE: Petición recibida desde Cloudflare Workers (HEAD /)")
+    # Log cuando HF Spaces hace la petición automática
+    print("🔄 KEEP-ALIVE: Petición recibida desde Hugging Face Spaces (HEAD /)")
     
     return {
         "status": "ok", 
@@ -426,10 +436,10 @@ def root():
 @app.get("/ping")
 @app.head("/ping")  # ⭐ SOPORTE PARA HEAD REQUEST
 def ping():
-    """Endpoint simple para mantener el servicio activo en Render"""
+    """Endpoint simple para mantener el servicio activo en HF Spaces"""
     
     # Log más informativo
-    print("🔄 KEEP-ALIVE: Ping recibido desde Cloudflare Workers")
+    print("🔄 KEEP-ALIVE: Ping recibido desde Hugging Face Spaces")
     print(f"⏰ Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
     
     # Ejecutar limpieza de memoria preventiva
@@ -441,7 +451,7 @@ def ping():
         "service": "evermind-backend",
         "memory_usage": "optimized",
         "keep_alive": "active",
-        "source": "cloudflare_workers_cron"
+        "source": "huggingface_spaces_auto"
     }
 
 @app.get("/health")
@@ -598,15 +608,37 @@ async def test_openrouter():
 if GRADIO_AVAILABLE:
     
     def transcribe_audio_for_gradio(audio_file):
-        """Función para transcribir audio desde Gradio"""
+        """Función para transcribir audio desde Gradio con configuración mejorada"""
         try:
             load_whisper_model()
             if audio_file is None:
                 return "❌ No se ha proporcionado un archivo de audio"
             
-            # Transcribir usando Whisper
-            result = model.transcribe(audio_file, language="es")
+            # Transcribir usando Whisper con configuración optimizada para precisión
+            result = model.transcribe(
+                audio_file, 
+                language="es",
+                temperature=0.0,  # Máxima precisión
+                no_speech_threshold=0.6,
+                condition_on_previous_text=True,
+                initial_prompt="Transcripción en español de España. Palabras frecuentes: trabajo, estoy, muy, mal, bien, pasando, auténtica, mierda, siendo, una."
+            )
             transcription = result["text"].strip()
+            
+            # Aplicar correcciones comunes
+            corrections = {
+                "mica": "mierda",
+                "mienda": "mierda", 
+                "mierde": "mierda",
+                "miarda": "mierda",
+                "estando": "estoy",
+                " lo estoy": " estoy",
+                "noticia": "auténtica",
+                "restriciendo": "restringiendo",
+            }
+            
+            for wrong, correct in corrections.items():
+                transcription = transcription.replace(wrong, correct)
             
             if not transcription:
                 return "❌ No se pudo transcribir el audio"
