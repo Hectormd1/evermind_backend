@@ -350,7 +350,6 @@ async def transcribe_audio(file: UploadFile = File(...)):
             best_of=3,  # Tres candidatos para mejor resultado
             patience=2.0  # Más paciente para mejor calidad
         )
-        )
         
         # ⭐ LIMPIEZA INMEDIATA Y AGRESIVA DE MEMORIA DESPUÉS DE TRANSCRIPCIÓN
         print("🧹 LIMPIEZA: Liberando memoria post-transcripción...")
