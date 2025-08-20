@@ -12,6 +12,8 @@ import gc  # Para garbage collection manual
 import psutil  # Para monitoreo de memoria
 from typing import List, Optional
 from dotenv import load_dotenv
+import gradio as gr
+import asyncio
 
 # Cargar variables de entorno
 load_dotenv()
@@ -569,3 +571,148 @@ async def test_openrouter():
     test_messages = [{"role": "user", "content": "Hola, prueba rápida"}]
     result = await call_openrouter_ai(test_messages)
     return {"provider": "OpenRouter", "result": result, "status": "success" if result else "failed"}
+
+# =============================================================================
+# INTERFAZ GRADIO PARA HUGGING FACE SPACES
+# =============================================================================
+
+def transcribe_audio_for_gradio(audio_file):
+    """Función para transcribir audio desde Gradio"""
+    try:
+        load_whisper_model()
+        if audio_file is None:
+            return "❌ No se ha proporcionado un archivo de audio"
+        
+        # Transcribir usando Whisper
+        result = model.transcribe(audio_file, language="es")
+        transcription = result["text"].strip()
+        
+        if not transcription:
+            return "❌ No se pudo transcribir el audio"
+        
+        return f"✅ Transcripción: {transcription}"
+    
+    except Exception as e:
+        return f"❌ Error en transcripción: {str(e)}"
+
+async def chat_for_gradio(message, history):
+    """Función para chat desde Gradio"""
+    try:
+        # Convertir historial de Gradio a formato de mensajes
+        messages = []
+        for human, assistant in history:
+            messages.append({"role": "user", "content": human})
+            if assistant:
+                messages.append({"role": "assistant", "content": assistant})
+        
+        # Agregar mensaje actual
+        messages.append({"role": "user", "content": message})
+        
+        # Llamar a la función de chat
+        response = await call_ai_providers(messages)
+        
+        if response and response.get("choices"):
+            return response["choices"][0]["message"]["content"]
+        else:
+            return "❌ Error: No se pudo generar respuesta"
+    
+    except Exception as e:
+        return f"❌ Error en chat: {str(e)}"
+
+# Crear interfaz Gradio
+with gr.Blocks(title="Evermind AI Backend", theme=gr.themes.Soft()) as demo:
+    gr.Markdown("# 🧠 Evermind AI Backend")
+    gr.Markdown("Backend para transcripción de audio y chat con IA")
+    
+    with gr.Tab("🎤 Transcripción de Audio"):
+        gr.Markdown("### Sube un archivo de audio para transcribir")
+        audio_input = gr.Audio(
+            label="Archivo de Audio",
+            type="filepath",
+            format="wav"
+        )
+        transcribe_btn = gr.Button("🎯 Transcribir", variant="primary")
+        transcription_output = gr.Textbox(
+            label="Transcripción",
+            lines=3,
+            placeholder="La transcripción aparecerá aquí..."
+        )
+        
+        transcribe_btn.click(
+            fn=transcribe_audio_for_gradio,
+            inputs=[audio_input],
+            outputs=[transcription_output]
+        )
+    
+    with gr.Tab("💬 Chat con IA"):
+        gr.Markdown("### Chatea con la IA de Evermind")
+        chatbot = gr.Chatbot(
+            label="Conversación",
+            height=400,
+            placeholder="Inicia una conversación..."
+        )
+        msg = gr.Textbox(
+            label="Mensaje",
+            placeholder="Escribe tu mensaje aquí...",
+            lines=2
+        )
+        send_btn = gr.Button("📤 Enviar", variant="primary")
+        clear_btn = gr.Button("🗑️ Limpiar Chat", variant="secondary")
+        
+        def respond(message, history):
+            # Función wrapper para manejar el async
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                response = loop.run_until_complete(chat_for_gradio(message, history))
+                history.append((message, response))
+                return history, ""
+            finally:
+                loop.close()
+        
+        send_btn.click(
+            fn=respond,
+            inputs=[msg, chatbot],
+            outputs=[chatbot, msg]
+        )
+        
+        clear_btn.click(
+            fn=lambda: ([], ""),
+            outputs=[chatbot, msg]
+        )
+    
+    with gr.Tab("📊 Estado del Sistema"):
+        gr.Markdown("### Información del backend")
+        status_output = gr.Textbox(
+            label="Estado",
+            value="✅ Backend funcionando correctamente",
+            interactive=False
+        )
+        refresh_btn = gr.Button("🔄 Actualizar Estado")
+        
+        def get_system_status():
+            try:
+                memory_percent = psutil.virtual_memory().percent
+                model_status = "✅ Cargado" if model else "⏳ No cargado"
+                return f"""
+✅ **Backend Status**: Activo
+🤖 **Modelo Whisper**: {model_status}
+💾 **Uso de Memoria**: {memory_percent}%
+🌐 **Endpoints**: /transcribe, /chat, /ping
+                """
+            except Exception as e:
+                return f"❌ Error obteniendo estado: {str(e)}"
+        
+        refresh_btn.click(
+            fn=get_system_status,
+            outputs=[status_output]
+        )
+
+# Montar la aplicación Gradio en FastAPI
+app = gr.mount_gradio_app(app, demo, path="/")
+
+if __name__ == "__main__":
+    import uvicorn
+    # En Hugging Face Spaces, usar puerto 7860
+    port = int(os.environ.get("PORT", 7860))
+    uvicorn.run(app, host="0.0.0.0", port=port)
