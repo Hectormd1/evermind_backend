@@ -769,5 +769,10 @@ if GRADIO_AVAILABLE:
 else:
     print("⚠️ GRADIO: No disponible - funcionando solo como API REST")
 
+# Debug final para HF Spaces
+print("🔍 DEBUG: Aplicación FastAPI inicializada correctamente")
+print(f"🔍 DEBUG: Gradio disponible: {GRADIO_AVAILABLE}")
+print(f"🔍 DEBUG: Tipo de app: {type(app)}")
+
 # HF Spaces ejecutará automáticamente la aplicación
 # No ejecutar uvicorn.run() cuando se importa desde app.py
