@@ -64,13 +64,13 @@ def load_whisper_model():
     if model is None:
         try:
             import whisper
-            print("🤖 WHISPER: Iniciando carga del modelo 'medium'...")
+            print("🤖 WHISPER: Iniciando carga del modelo 'small'...")
             print(f"💾 MEMORIA ANTES: {psutil.virtual_memory().percent}%")
             
-            # Usar modelo 'medium' para máxima precisión (mejor que base)
-            model = whisper.load_model("medium", device="cpu", download_root=None)
+            # Usar modelo 'small' - balance perfecto entre velocidad y precisión
+            model = whisper.load_model("small", device="cpu", download_root=None)
             
-            print("✅ WHISPER: Modelo 'medium' cargado exitosamente en CPU")
+            print("✅ WHISPER: Modelo 'small' cargado exitosamente en CPU")
             print(f"💾 MEMORIA DESPUÉS: {psutil.virtual_memory().percent}%")
             
             # Limpiar memoria inmediatamente después de cargar
@@ -186,30 +186,30 @@ async def call_openrouter_ai(messages: List[dict]) -> str:
         if OPENROUTER_API_KEY:
             headers["Authorization"] = f"Bearer {OPENROUTER_API_KEY}"
         
-        async with httpx.AsyncClient(timeout=60.0) as client:  # Timeout más largo
+        async with httpx.AsyncClient(timeout=20.0) as client:  # Timeout reducido a 20s
             response = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers=headers,
                 json={
                     "model": OPENROUTER_MODEL,
                     "messages": messages,
-                    "max_tokens": 380,
+                    "max_tokens": 300,  # Reducido para respuestas más rápidas
                     "temperature": 0.7,
                 },
-                timeout=60.0  # Timeout específico de 60 segundos
+                timeout=20.0  # Timeout específico de 20 segundos
             )
             
             if response.status_code == 200:
                 data = response.json()
                 reply = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                if reply and len(reply) > 20:
+                if reply and len(reply) > 15:  # Menos estricto en longitud
                     return reply.strip()
             else:
                 error_text = response.text
                 print(f"❌ OpenRouter error: {response.status_code} - {error_text}")
                 return None
     except asyncio.TimeoutError:
-        print("❌ OpenRouter timeout: Solicitud demoró más de 60 segundos")
+        print("❌ OpenRouter timeout: Solicitud demoró más de 20 segundos")
         return None
     except Exception as e:
         print(f"❌ OpenRouter exception: {e}")
@@ -221,7 +221,7 @@ async def call_groq_ai(messages: List[dict]) -> str:
         return None
     
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:  # Timeout más largo
+        async with httpx.AsyncClient(timeout=20.0) as client:  # Timeout reducido a 20s
             response = await client.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={
@@ -231,22 +231,22 @@ async def call_groq_ai(messages: List[dict]) -> str:
                 json={
                     "model": GROQ_MODEL,
                     "messages": messages,
-                    "max_tokens": 380,
+                    "max_tokens": 300,  # Reducido para respuestas más rápidas
                     "temperature": 0.7,
                 },
-                timeout=60.0  # Timeout específico de 60 segundos
+                timeout=20.0  # Timeout específico de 20 segundos
             )
             
             if response.status_code == 200:
                 data = response.json()
                 reply = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                if reply and len(reply) > 40:
+                if reply and len(reply) > 20:  # Menos estricto en longitud
                     return reply.strip()
             else:
                 print(f"❌ Groq error: {response.status_code} - {response.text}")
                 return None
     except asyncio.TimeoutError:
-        print("❌ Groq timeout: Solicitud demoró más de 60 segundos")
+        print("❌ Groq timeout: Solicitud demoró más de 20 segundos")
         return None
     except Exception as e:
         print(f"❌ Groq exception: {e}")
@@ -334,21 +334,21 @@ async def transcribe_audio(file: UploadFile = File(...)):
         print(f"📁 ARCHIVO: {temp_file_path}")
         print(f"💾 MEMORIA PRE-TRANSCRIPCIÓN: {psutil.virtual_memory().percent}%")
         
-        # Transcribir con Whisper (configuración ultra-precisa máxima)
+        # Transcribir con Whisper (configuración equilibrada velocidad-precisión)
         result = model.transcribe(
             temp_file_path,
             language="es",  # Forzar español
             fp16=False,  # Mejor compatibilidad
-            temperature=0.0,  # Máxima precisión, sin variación
-            word_timestamps=True,  # Activar para mejor análisis de palabras
-            no_speech_threshold=0.8,  # Más estricto para detectar habla
-            logprob_threshold=-0.5,  # Más estricto con la confianza
-            compression_ratio_threshold=2.0,  # Más estricto contra repeticiones
-            condition_on_previous_text=True,  # Usar contexto para mejor coherencia
-            initial_prompt="Transcripción ultra-precisa en español de España. Audio de persona hablando sobre trabajo, emociones y situaciones laborales. Habla clara y directa.",  # Contexto más específico
-            beam_size=10,  # Usar beam search más amplio para máxima precisión
-            best_of=10,  # Probar más decodificaciones
-            patience=3.0  # Más paciente en la decodificación
+            temperature=0.0,  # Máxima precisión
+            word_timestamps=False,  # Desactivar para mayor velocidad
+            no_speech_threshold=0.6,  # Balanceado para detectar habla
+            logprob_threshold=-1.0,  # Balanceado con la confianza
+            compression_ratio_threshold=2.4,  # Evitar repeticiones
+            condition_on_previous_text=True,  # Usar contexto
+            initial_prompt="Transcripción en español de España. Audio sobre trabajo y emociones.",  # Prompt más simple
+            beam_size=3,  # Reducido para velocidad manteniendo calidad
+            best_of=3,  # Reducido para velocidad
+            patience=1.0  # Menos paciente para mayor velocidad
         )
         
         # ⭐ LIMPIEZA INMEDIATA Y AGRESIVA DE MEMORIA DESPUÉS DE TRANSCRIPCIÓN
@@ -489,7 +489,7 @@ def status_check():
             "timestamp": int(time.time()),
             "uptime": "continuous",
             "memory": memory_info,
-            "whisper_model": "medium" if model and model is not False else "not_loaded",
+            "whisper_model": "small" if model and model is not False else "not_loaded",
             "endpoints_active": ["/transcribe", "/reflect", "/ping", "/health", "/status"],
             "keep_alive_mode": "ultra_aggressive",
             "auto_cleanup": memory_info['used_percent'] <= 75
@@ -600,20 +600,20 @@ if GRADIO_AVAILABLE:
             if audio_file is None:
                 return "❌ No se ha proporcionado un archivo de audio"
             
-            # Transcribir usando Whisper con configuración ultra-precisa máxima
+            # Transcribir usando Whisper con configuración equilibrada
             result = model.transcribe(
                 audio_file, 
                 language="es",
                 temperature=0.0,  # Máxima precisión
-                word_timestamps=True,
-                no_speech_threshold=0.8,  # Más estricto
-                logprob_threshold=-0.5,  # Más estricto con la confianza
-                compression_ratio_threshold=2.0,  # Más estricto contra repeticiones
+                word_timestamps=False,  # Desactivar para velocidad
+                no_speech_threshold=0.6,  # Balanceado
+                logprob_threshold=-1.0,  # Balanceado con la confianza
+                compression_ratio_threshold=2.4,  # Evitar repeticiones
                 condition_on_previous_text=True,
-                initial_prompt="Transcripción ultra-precisa en español de España. Audio de persona hablando sobre trabajo, emociones y situaciones laborales. Habla clara y directa.",
-                beam_size=10,  # Más amplio para máxima precisión
-                best_of=10,  # Más decodificaciones
-                patience=3.0  # Más paciente
+                initial_prompt="Transcripción en español de España. Audio sobre trabajo y emociones.",
+                beam_size=3,  # Reducido para velocidad
+                best_of=3,  # Reducido para velocidad
+                patience=1.0  # Menos paciente para mayor velocidad
             )
             transcription = result["text"].strip()
             
