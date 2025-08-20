@@ -1,0 +1,31 @@
+# Configuración de pylint para Evermind Backend
+[MASTER]
+# Ignorar archivos específicos
+ignore=.git,__pycache__,.pytest_cache
+
+[MESSAGES CONTROL]
+# Deshabilitar warnings específicos
+disable=
+    import-error,
+    no-member,
+    unused-import,
+    broad-except,
+    too-many-locals,
+    too-many-statements,
+    too-many-branches,
+    line-too-long,
+    missing-docstring,
+    invalid-name,
+    global-statement,
+    unused-variable,
+    redefined-outer-name
+
+[FORMAT]
+# Longitud máxima de línea
+max-line-length=120
+
+[DESIGN]
+# Número máximo de argumentos
+max-args=10
+# Número máximo de locals
+max-locals=20
