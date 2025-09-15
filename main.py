@@ -414,14 +414,16 @@ from fastapi import Request
 @app.head("/ping")  # ⭐ SOPORTE PARA HEAD REQUEST
 def ping(request: Request):
     """Endpoint simple para mantener el servicio activo en HF Spaces"""
-    user_agent = request.headers.get('user-agent', '').lower()
-    if 'cloudflare' in user_agent:
+    user_agent = request.headers.get('user-agent', '')
+    user_agent_lower = user_agent.lower()
+    if 'cloudflare' in user_agent_lower:
         caller = 'cloudflare_worker'
-    elif 'huggingface' in user_agent or 'python-httpx' in user_agent:
+    elif 'huggingface' in user_agent_lower or 'python-httpx' in user_agent_lower:
         caller = 'huggingface_spaces_auto'
     else:
-        caller = user_agent or 'unknown'
+        caller = 'unknown'
     print(f"🔄 KEEP-ALIVE: Ping recibido desde {caller}")
+    print(f"   ↳ User-Agent: {user_agent}")
     print(f"⏰ Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
     cleanup_whisper_memory()
     return {
@@ -430,7 +432,8 @@ def ping(request: Request):
         "service": "evermind-backend",
         "memory_usage": "optimized",
         "keep_alive": "active",
-        "source": caller
+        "source": caller,
+        "user_agent": user_agent
     }
 
 @app.get("/health")
