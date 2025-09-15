@@ -81,28 +81,19 @@ def load_whisper_model():
 
 # Función mejorada para liberar memoria después de transcripción
 def cleanup_whisper_memory():
-    try:
-        gc.collect()  # Garbage collection inmediato
-        
-        # Si torch está disponible, limpiar cache
-        if TORCH_AVAILABLE:
-            try:
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except Exception:
-                pass
-            
-        memory_percent = psutil.virtual_memory().percent
-    pass  # Log de memoria eliminado para limpieza
-        
-        # Si el uso de memoria es muy alto, forzar limpieza más agresiva
-        if memory_percent > 80:
-            pass  # Log de limpieza agresiva eliminado
-            for i in range(3):
-                gc.collect()
-                
-    except Exception as e:
-    pass  # Log de error de limpieza eliminado
+    gc.collect()  # Garbage collection inmediato
+    # Si torch está disponible, limpiar cache
+    if TORCH_AVAILABLE:
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+    memory_percent = psutil.virtual_memory().percent
+    # Si el uso de memoria es muy alto, forzar limpieza más agresiva
+    if memory_percent > 80:
+        for i in range(3):
+            gc.collect()
 
 # Función para verificar memoria disponible
 def check_memory_status():
@@ -168,7 +159,7 @@ async def call_together_ai(messages: List[dict]) -> str:
                 print(f"❌ Together AI error: {response.status_code}")
                 return None
     except Exception as e:
-    print(f"❌ Together AI exception: {e}")
+        print(f"❌ Together AI exception: {e}")
         return None
 
 async def call_openrouter_ai(messages: List[dict]) -> str:
@@ -207,10 +198,10 @@ async def call_openrouter_ai(messages: List[dict]) -> str:
                 print(f"❌ OpenRouter error: {response.status_code} - {error_text}")
                 return None
     except asyncio.TimeoutError:
-    print("❌ OpenRouter timeout: >60s")
+        print("❌ OpenRouter timeout: >60s")
         return None
     except Exception as e:
-    print(f"❌ OpenRouter exception: {e}")
+        print(f"❌ OpenRouter exception: {e}")
         return None
 
 async def call_groq_ai(messages: List[dict]) -> str:
@@ -244,10 +235,10 @@ async def call_groq_ai(messages: List[dict]) -> str:
                 print(f"❌ Groq error: {response.status_code} - {response.text}")
                 return None
     except asyncio.TimeoutError:
-    print("❌ Groq timeout: >60s")
+        print("❌ Groq timeout: >60s")
         return None
     except Exception as e:
-    print(f"❌ Groq exception: {e}")
+        print(f"❌ Groq exception: {e}")
         return None
 
 async def generate_ai_response(messages: List[ChatMessage], mood_before: Optional[int] = None) -> str:
@@ -417,35 +408,19 @@ def root():
         "ai_providers": ["groq", "openrouter", "together"]
     }
 
+from fastapi import Request
+
 @app.get("/ping")
 @app.head("/ping")  # ⭐ SOPORTE PARA HEAD REQUEST
-def ping():
+def ping(request: Request):
     """Endpoint simple para mantener el servicio activo en HF Spaces"""
-    
-    from fastapi import Request
-    import inspect
-    # Detectar origen del ping por User-Agent
-    caller = None
-    try:
-        # Obtener el request de la pila de llamadas
-        for frame in inspect.stack():
-            if 'request' in frame.frame.f_locals:
-                request = frame.frame.f_locals['request']
-                break
-        else:
-            request = None
-        if request:
-            user_agent = request.headers.get('user-agent', '').lower()
-            if 'cloudflare' in user_agent:
-                caller = 'cloudflare_worker'
-            elif 'huggingface' in user_agent or 'python-httpx' in user_agent:
-                caller = 'huggingface_spaces_auto'
-            else:
-                caller = user_agent or 'unknown'
-        else:
-            caller = 'unknown'
-    except Exception:
-        caller = 'unknown'
+    user_agent = request.headers.get('user-agent', '').lower()
+    if 'cloudflare' in user_agent:
+        caller = 'cloudflare_worker'
+    elif 'huggingface' in user_agent or 'python-httpx' in user_agent:
+        caller = 'huggingface_spaces_auto'
+    else:
+        caller = user_agent or 'unknown'
     print(f"🔄 KEEP-ALIVE: Ping recibido desde {caller}")
     print(f"⏰ Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
     cleanup_whisper_memory()
