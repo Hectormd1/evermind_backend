@@ -41,8 +41,8 @@ except ImportError:
 load_dotenv()
 
 # Log de inicio
-print("🚀 EVERMIND BACKEND: Iniciando servidor...")
-print("🔄 KEEP-ALIVE: Worker automático configurado")
+
+print("🚀 EVERMIND BACKEND: Iniciado.")
 print(f"💾 MEMORIA INICIAL: {psutil.virtual_memory().percent}%")
 
 app = FastAPI(title="Evermind AI Backend", version="1.0.0")
@@ -64,20 +64,18 @@ def load_whisper_model():
     if model is None:
         try:
             import whisper
-            print("🤖 WHISPER: Iniciando carga del modelo 'medium'...")
-            print(f"💾 MEMORIA ANTES: {psutil.virtual_memory().percent}%")
+            print("🤖 WHISPER: Cargando modelo 'small'...")
             
-            # Usar modelo 'medium' - máxima precisión para español
-            model = whisper.load_model("medium", device="cpu", download_root=None)
+            # Usar modelo 'small' - menor latencia y consumo de memoria
+            model = whisper.load_model("small", device="cpu", download_root=None)
             
-            print("✅ WHISPER: Modelo 'medium' cargado exitosamente en CPU")
-            print(f"💾 MEMORIA DESPUÉS: {psutil.virtual_memory().percent}%")
+            print("✅ WHISPER: Modelo 'small' cargado en CPU")
             
             # Limpiar memoria inmediatamente después de cargar
             gc.collect()
             
         except Exception as e:
-            print(f"❌ WHISPER ERROR: Error cargando modelo: {e}")
+            print(f"❌ WHISPER ERROR: {e}")
             model = False
     return model
 
@@ -95,16 +93,16 @@ def cleanup_whisper_memory():
                 pass
             
         memory_percent = psutil.virtual_memory().percent
-        print(f"🧹 MEMORIA LIMPIA: {memory_percent}% usado")
+    pass  # Log de memoria eliminado para limpieza
         
         # Si el uso de memoria es muy alto, forzar limpieza más agresiva
         if memory_percent > 80:
-            print("⚠️ MEMORIA ALTA: Ejecutando limpieza agresiva...")
+            pass  # Log de limpieza agresiva eliminado
             for i in range(3):
                 gc.collect()
                 
     except Exception as e:
-        print(f"❌ ERROR EN LIMPIEZA: {e}")
+    pass  # Log de error de limpieza eliminado
 
 # Función para verificar memoria disponible
 def check_memory_status():
@@ -125,7 +123,7 @@ OPENROUTER_MODEL = "mistralai/mistral-7b-instruct:free"  # Modelo completamente 
 
 # Groq (API gratuita muy rápida) - Principal proveedor
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama3-8b-8192")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "mixtral-8x7b-32768")
 
 # Modelos para el chat
 class ChatMessage(BaseModel):
@@ -170,7 +168,7 @@ async def call_together_ai(messages: List[dict]) -> str:
                 print(f"❌ Together AI error: {response.status_code}")
                 return None
     except Exception as e:
-        print(f"❌ Together AI exception: {e}")
+    print(f"❌ Together AI exception: {e}")
         return None
 
 async def call_openrouter_ai(messages: List[dict]) -> str:
@@ -209,10 +207,10 @@ async def call_openrouter_ai(messages: List[dict]) -> str:
                 print(f"❌ OpenRouter error: {response.status_code} - {error_text}")
                 return None
     except asyncio.TimeoutError:
-        print("❌ OpenRouter timeout: Solicitud demoró más de 60 segundos")
+    print("❌ OpenRouter timeout: >60s")
         return None
     except Exception as e:
-        print(f"❌ OpenRouter exception: {e}")
+    print(f"❌ OpenRouter exception: {e}")
         return None
 
 async def call_groq_ai(messages: List[dict]) -> str:
@@ -246,10 +244,10 @@ async def call_groq_ai(messages: List[dict]) -> str:
                 print(f"❌ Groq error: {response.status_code} - {response.text}")
                 return None
     except asyncio.TimeoutError:
-        print("❌ Groq timeout: Solicitud demoró más de 60 segundos")
+    print("❌ Groq timeout: >60s")
         return None
     except Exception as e:
-        print(f"❌ Groq exception: {e}")
+    print(f"❌ Groq exception: {e}")
         return None
 
 async def generate_ai_response(messages: List[ChatMessage], mood_before: Optional[int] = None) -> str:
@@ -261,7 +259,7 @@ async def generate_ai_response(messages: List[ChatMessage], mood_before: Optiona
     # System prompt optimizado para respuestas coherentes y naturales
     ai_messages.append({
         "role": "system",
-        "content": "Eres un psicólogo y acompañante emocional empático llamado Evermind. Tu objetivo es ayudar a las personas a reflexionar sobre sus emociones y sentimientos de manera natural y humana. REGLAS IMPORTANTES: 1) LEE CUIDADOSAMENTE lo que el usuario te dice antes de responder. 2) Responde SOLO en español natural de España/México, sin anglicismos. 3) Sé específico y relevante a lo que el usuario menciona. 4) Si el usuario expresa frustración, tristeza, enojo o cualquier emoción específica, reconócela directamente. 5) Haz preguntas abiertas para que la persona profundice en sus emociones. 6) No des consejos genéricos, personaliza tu respuesta a su situación específica. 7) Máximo 150 palabras. 8) Habla como un amigo comprensivo, no como un terapeuta formal."
+        "content": "Eres un psicólogo y acompañante emocional empático llamado Evermind. Tu objetivo es ayudar a las personas a reflexionar sobre sus emociones y sentimientos de manera natural y humana. REGLAS IMPORTANTES: 1) LEE CUIDADOSAMENTE lo que el usuario te dice antes de responder. 2) Responde SOLO en español natural de España, sin anglicismos. 3) Sé específico y relevante a lo que el usuario menciona. 4) Si el usuario expresa frustración, tristeza, enojo o cualquier emoción específica, reconócela directamente. 5) Haz preguntas abiertas para que la persona profundice en sus emociones. 6) No des consejos genéricos, personaliza tu respuesta a su situación específica. 7) Máximo 150 palabras. 8) Habla como un amigo comprensivo, no como un terapeuta formal."
     })
     
     # Agregar historial de mensajes
@@ -424,20 +422,40 @@ def root():
 def ping():
     """Endpoint simple para mantener el servicio activo en HF Spaces"""
     
-    # Log más informativo
-    print("🔄 KEEP-ALIVE: Ping recibido desde Hugging Face Spaces")
+    from fastapi import Request
+    import inspect
+    # Detectar origen del ping por User-Agent
+    caller = None
+    try:
+        # Obtener el request de la pila de llamadas
+        for frame in inspect.stack():
+            if 'request' in frame.frame.f_locals:
+                request = frame.frame.f_locals['request']
+                break
+        else:
+            request = None
+        if request:
+            user_agent = request.headers.get('user-agent', '').lower()
+            if 'cloudflare' in user_agent:
+                caller = 'cloudflare_worker'
+            elif 'huggingface' in user_agent or 'python-httpx' in user_agent:
+                caller = 'huggingface_spaces_auto'
+            else:
+                caller = user_agent or 'unknown'
+        else:
+            caller = 'unknown'
+    except Exception:
+        caller = 'unknown'
+    print(f"🔄 KEEP-ALIVE: Ping recibido desde {caller}")
     print(f"⏰ Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
-    
-    # Ejecutar limpieza de memoria preventiva
     cleanup_whisper_memory()
-    
     return {
         "status": "pong",
         "timestamp": int(time.time()),
         "service": "evermind-backend",
         "memory_usage": "optimized",
         "keep_alive": "active",
-        "source": "huggingface_spaces_auto"
+        "source": caller
     }
 
 @app.get("/health")
