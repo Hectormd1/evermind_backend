@@ -114,7 +114,7 @@ OPENROUTER_MODEL = "mistralai/mistral-7b-instruct:free"  # Modelo completamente 
 
 # Groq (API gratuita muy rápida) - Principal proveedor
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "mixtral-8x7b-32768")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 # Modelos para el chat
 class ChatMessage(BaseModel):
