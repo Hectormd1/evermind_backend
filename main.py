@@ -380,11 +380,41 @@ async def reflect_chat(request: ReflectRequest):
     """Endpoint para generar respuestas de IA real"""
     try:
         print(f"🤖 Generando respuesta IA real para {len(request.messages)} mensajes")
-        
+        # Respuesta general de la IA
         reply = await generate_ai_response(request.messages, request.mood_before)
-        
+
+        # Prompt específico para microacción breve y relevante
+        microaction_prompt = (
+            "A partir de la conversación previa, sugiere SOLO UNA microacción breve, concreta y accionable que ayude a la persona a mejorar su bienestar emocional. "
+            "No repitas consejos genéricos, personaliza la microacción según lo que la persona ha contado. "
+            "Ejemplo: 'Da un paseo de 5 minutos', 'Escribe 3 cosas buenas de tu día', 'Envía un mensaje a un amigo', etc. (No tienes porque usar estas frases, solo son ejemplos de que tipo de consejo queremos)"
+            "Devuelve SOLO la microacción, sin explicaciones ni saludos."
+        )
+        # Construir historial para la IA: toda la conversación + prompt de microacción
+        microaction_messages = [
+            {"role": "system", "content": microaction_prompt}
+        ]
+        for msg in request.messages:
+            microaction_messages.append({"role": msg.role, "content": msg.content})
+        # Último mensaje: "¿Qué microacción concreta me propones?"
+        microaction_messages.append({"role": "user", "content": "¿Qué microacción concreta me propones?"})
+
+        # Usar el mismo generador de IA pero con el prompt de microacción
+        step_suggestion = await generate_ai_response([
+            ChatMessage(role=m["role"], content=m["content"]) for m in microaction_messages
+        ])
+
+        # Limpiar la microacción: solo la primera línea, sin saludos ni explicaciones
+        if step_suggestion:
+            step_suggestion = step_suggestion.strip().split("\n")[0]
+            # Quitar saludos o frases largas
+            for prefix in ["Te propongo ", "¿Qué te parece si ", "Podrías intentar ", "Te animo a "]:
+                if step_suggestion.lower().startswith(prefix.lower()):
+                    step_suggestion = step_suggestion[len(prefix):].strip()
+
         return {
             "reply": reply,
+            "step_suggestion": step_suggestion,
             "provider": "multi_provider_system"
         }
     except Exception as e:
